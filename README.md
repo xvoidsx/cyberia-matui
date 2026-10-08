@@ -1,229 +1,57 @@
 <div align="center">
-  <img src="matui.png" alt="Logo" width="200">
+  <h1>C Y B E R I A</h1>
 </div>
 
-<h1 align="center">Matui</h1>
+An opinionated [Matrix](https://matrix.org/) TUI, dressed in nightshadeNeon.
+The UI is kept as simple as possible and there's no mouse support (yet, at
+least). With the assumption that usually only the last couple messages
+actually matter, vertical space is not conserved at all.
 
-A very opinionated [Matrix](https://matrix.org/) TUI. The UI is kept as simple
-as possible and there's no mouse support (yet, at least). With the assumption
-that usually only the last couple messages actually matter, vertical space
-is not conserved at all.
-
-![Matui](https://github.com/pkulak/matui/blob/main/screenshot.png?raw=true "The main chat window.")
+Cyberia is a friendly fork of [matui](https://github.com/pkulak/matui) by
+Phil Kulak, maintained by [xvoidsx](https://github.com/xvoidsx). Improvements
+that fit upstream's vision are contributed back; the rest lives here.
 
 # Who should use this client?
 
-Anyone who wants a very simple terminal Matrix client. Room administration
-beyond moderation (settings, power levels) is left to other clients.
+Anyone who wants a very simple terminal Matrix client with a neon soul.
+Room administration beyond moderation (settings, power levels) is left to
+other clients.
 
 # Installation
 
 ## Releases
 
-You can download the latest release, unpack it, and move `matui` to `/usr/bin`
+You can download the latest release, unpack it, and move `cyberia` to `/usr/bin`
 (or anywhere else you like).
 
-## Arch Linux
+## From source
 
-Matui is packaged for the AUR: `paru -S matui`.
-
-## Nix
-
-There is a `flake.nix` that can be used run temporarily locally, or to install on NixOS or a `home-manager` system.
-
-### Shell
-
-`nix run github:pkulak/matui`
-
-### OS
-
-```nix
-{
-  # Use prebuilt Matui packages when available.
-  nixConfig = {
-    extra-substituters = [ "https://pkulak.cachix.org" ];
-    extra-trusted-public-keys = [
-      "pkulak.cachix.org-1:S25jAptWCkAmwrk41b47lheB9onW9mzxVqM9o6HRg1E="
-    ];
-  };
-
-  inputs = {
-    matui.url = "github:pkulak/matui";
-  };
-  outputs =
-    inputs@{ self
-    , nixpkgs-unstable
-    , ...
-    }:
-    let
-      overlays = {
-        unstable = _: prev: {
-          unstable = import nixpkgs-unstable
-            {
-              inherit (prev.stdenv) system;
-            } // {
-            matui = inputs.matui.packages.${prev.stdenv.system}.matui;
-          };
-        };
-      };
-    in
-    {
-      <snip>;
-      packages = with pkgs; [
-        unstable.matui
-      ];
-    }
-}
-```
+`cargo build --release` — the binary lands at `target/release/cyberia`.
 
 # Keybindings
 
 Modal UIs can be a bit overwhelming, but thankfully chat isn't terribly
 complicated. Especially if you don't implement too many features.
 
-Commands starting with `:` are entered by pressing `:` in the chat window,
-then typing the command name (without the colon) into the prompt.
-
 | Key    | Description                                            |
 |--------|--------------------------------------------------------|
 | Space  | Show the room switcher.                                |
 | j*     | Select one line down.                                  |
 | k*     | Select one line up.                                    |
-| Ctrl+d | Select half a page down.                               |
-| Ctrl+u | Select half a page up.                                 |
-| G      | Select latest message.                                 |
-| i      | Compose a new message.                                 |
-| I      | Create a new message directly in the external editor.  |
-| Enter  | Open the selected message, or its thread if it has one. |
-| Esc    | Leave the thread view.                                 |
+| i      | Create a new message using the external editor.        |
+| Enter  | Open the selected message (images, videos, urls, etc). |
 | s      | Save the selected message (images and videos).         |
 | c      | Edit the selected message in the external editor.      |
 | r      | React to the selected message.                         |
 | R      | Reply to the selected message.                         |
-| T      | Start (or open) a thread on the selected message.      |
-| :verify | Verify this client with your passphrase.              |
-| :qr     | Let another device log in by scanning a QR code.      |
-| :leave  | Leave the current room.                               |
-| :forget | Leave the current room and forget its history.        |
-| :invite | Invite a user to the current room (bob, or @bob:example.com). |
-| :create | Create a new room.                                    |
-| :join   | Join a room: #alias, !id, or a name to search the server directory for. |
-| :dm     | Open a DM with a user (bob, or @bob:example.com); append "nocrypt" to skip encryption. |
-| :ban    | Ban a user from the current room, with an optional reason. |
-| :unban  | Lift a user's ban.                                     |
-| :kick   | Kick a user from the current room, with an optional reason. |
-| :ignore | Hide a user's messages, everywhere, from now on.       |
-| :unignore | Stop ignoring a user.                                |
 | v      | View the selected message in the external editor.      |
-| V      | View the current room, with its full member list, in the external editor. |
-| u      | Upload a file with an optional caption.                |
-| U      | Open the command prompt with the selected message's sender. |
+| V      | View the current room in the external editor.          |
+| u      | Upload a file.                                         |
 | m      | Mute or unmute the current room (until restart).       |
-| /      | Search the current room.                               |
 | ?      | Show this helper.                                      |
 
 \* arrow keys are fine too
 
-# Invites
+# License
 
-When you're invited to a room, Matui pops up a prompt: as soon as the invite
-arrives if it's running, or right after startup if not. "Yes" joins the room
-and takes you there, "No" declines the invite for good, and Esc puts it off
-until the next restart. If several invites are pending, they're shown one at
-a time.
-
-# Threads
-
-A message that starts a thread shows a gray "Thread: N messages" line.
-Hit Enter on that message to open the thread in its own view, and Esc to
-go right back to where you were in the room. Messages composed while
-viewing a thread are sent to the thread.
-
-To start a new thread, hit T on any message: it opens an empty thread
-view, and your first message there creates the thread.
-
-# External Applications
-
-The only requirement is an editor, and the $EDITOR environmental variable should
-be set.
-
-## File Viewing
-
-You will probably want to view attachments and should make sure xdg-open works
-with all the files you care about. I recommend [mpv](https://mpv.io/) and
-[imv](https://sr.ht/~exec64/imv/) at a minimum.
-
-## File Uploading and Downloads
-
-On Linux, an xdg-desktop-portal file chooser backend is required to show the
-file picker and save downloaded files. FFMpeg is also required to create
-thumbnails if you upload videos. Pasting an absolute file path or `file://` URI
-into a room opens the same caption and upload flow; separate multiple files with
-newlines.
-
-## Search
-
-Search (triggered by typing / in a room) is client side, and brute force. This
-uses more resources, but lets us go back as far as we like, and works in every
-room, encrypted or not. There are some guardrails, detailed below, but in
-general, it works great for finding recent messages, and you can go back
-farther if really needed.
-
-Searches are live as you type, and hitting Enter will let you scroll the list
-of results. Hitting Enter again on a result will jump to that message in the
-full timeline. Use Shift+G to go back to the latest message.
-
-## End-to-End Encryption
-
-After login, a verification request is sent out to your other clients. If you
-don't have any other clients, or don't want to verify this way, you can
-cancel/ignore the request and type `:verify` from the chat window to start
-a verification by passphrase.
-
-# Configuration Example
-
-```
-# All the reactions that will show up in the picker.
-reactions = [ "❤️", "👍", "👎", "😂", "‼️", "❓️"]
-
-# Muted rooms. Use "*" to mute every room.
-muted = ["!hMPITSQBLFEleSJeVe:matrix.org"]
-
-# Should messages that mention you notify, even in muted rooms? With
-# muted = ["*"], this means you are only notified for mentions.
-mentions_override_mute = true
-
-# Useful if your custom config is interfering with Enter key bindings
-clear_vim = false
-
-# What's the limit on how far back to go, in events? This is mostly to
-# put a limit on how far back a search will look. If you know your
-# homeserver is okay with it (and you have unlimited memory in your machine),
-# you can set this to -1. Default shown below.
-max_events = 8192
-
-
-# If you have a notification system that doesn't just send "dismissed" no
-# matter what, you can set this to true. This way, hopefully, when you dismiss
-# a notification, the room won't change.
-respect_notification_close_reason = false
-
-# How many lines do we let a message span before we cut it off and make the
-# user view it in the external editor?
-message_line_limit = 20
-```
-
-The config file is hot reloaded and can generally be found at
-~/.config/matui/config.toml.
-
-# Windows/Mac Support
-
-There's nothing explicitly preventing this, but it's untested and Linux is
-currently assumed. There's a mac bundle in the release, but that's just so
-I know it compiles. It's totally untested at the moment.
-
-# See Also
-
-There's another really fun Matrix TUI here, with a lot of the same goals:
-
-[iamb](https://github.com/ulyssa/iamb)
+GPL-2.0, same as upstream matui.

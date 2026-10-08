@@ -17,8 +17,13 @@ static OVERRIDES: LazyLock<Mutex<HashMap<String, HashSet<String>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
 fn get_path() -> PathBuf {
-    let mut path = dirs::config_dir().expect("no config directory");
-    path.push("matui");
+    // cyberia is the new home; fall back to the old matui dir so existing
+    // installs migrate seamlessly.
+    let base = dirs::config_dir().expect("no config directory");
+    let mut path = base.join("cyberia");
+    if !path.exists() && base.join("matui").exists() {
+        path = base.join("matui");
+    }
     path.push("config.toml");
 
     path

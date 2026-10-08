@@ -3,12 +3,12 @@ use crossterm::{
     execute,
 };
 use log::LevelFilter;
-use matui::app::App;
-use matui::event::{Event, EventHandler};
-use matui::handler::{
+use cyberia::app::App;
+use cyberia::event::{Event, EventHandler};
+use cyberia::handler::{
     handle_app_event, handle_blur_event, handle_focus_event, handle_key_event, handle_paste_event,
 };
-use matui::settings::watch_settings_forever;
+use cyberia::settings::watch_settings_forever;
 use std::io::stdout;
 
 fn main() -> anyhow::Result<()> {

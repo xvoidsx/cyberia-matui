@@ -12,6 +12,7 @@ use timeago::Formatter;
 use crate::matrix::matrix::{AfterDownload, Matrix, pad_emoji};
 use crate::matrix::username::Username;
 use crate::spawn::view_text;
+use crate::theme::role;
 use crate::{limit_list, pretty_list};
 use chrono::offset::Local;
 use matrix_sdk::room::RoomMember;
@@ -29,7 +30,7 @@ use matrix_sdk::ruma::{
     EventId, MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedRoomId, OwnedUserId,
 };
 use once_cell::unsync::OnceCell;
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::ListItem;
 
@@ -230,7 +231,7 @@ impl Message {
     pub fn style(&self) -> Style {
         match &self.body {
             Text(_) => Style::default(),
-            _ => Style::default().fg(Color::Blue),
+            _ => role::link(),
         }
     }
 
@@ -587,7 +588,7 @@ impl Message {
         for (index, line) in lines.iter_mut().enumerate() {
             let pipe = if index == 0 { first_pipe } else { "│ " };
 
-            line.insert(0, Span::styled(pipe, Style::default().fg(Color::Magenta)));
+            line.insert(0, Span::styled(pipe, role::accent()));
         }
     }
 
@@ -695,13 +696,13 @@ impl Message {
 
         // author
         let mut author = vec![
-            Span::styled(self.sender.as_str(), Style::default().fg(Color::Green)),
+            Span::styled(self.sender.as_str(), role::success()),
             Span::from(" "),
-            Span::styled(self.pretty_elapsed(), Style::default().fg(Color::DarkGray)),
+            Span::styled(self.pretty_elapsed(), role::dim()),
         ];
 
         if !self.history.is_empty() {
-            author.push(Span::styled(" (edited)", Style::default().fg(Color::Red)))
+            author.push(Span::styled(" (edited)", role::warning()))
         }
 
         lines.push(author);
@@ -721,7 +722,7 @@ impl Message {
             if message_overlap || self.reactions.len() > 5 {
                 lines.push(vec![Span::styled(
                     "* overflow: type \"v\" to view entire message",
-                    Style::default().fg(Color::Red),
+                    role::warning(),
                 )]);
 
                 sidecar.push(LineType::MessageContent);
@@ -744,7 +745,7 @@ impl Message {
             if message_overlap || self.reactions.len() > 5 {
                 lines.push(vec![Span::styled(
                     "* overflow: type \"v\" to view entire message",
-                    Style::default().fg(Color::Red),
+                    role::warning(),
                 )]);
 
                 sidecar.push(LineType::MessageContent);
@@ -764,7 +765,7 @@ impl Message {
                     "Seen by {}.",
                     pretty_list(limit_list(iter, 4, self.receipts.len(), None))
                 ),
-                Style::default().fg(Color::DarkGray),
+                role::dim(),
             )]);
 
             sidecar.push(LineType::MessageContent);
@@ -774,7 +775,7 @@ impl Message {
         for r in self.reactions.iter().take(5) {
             lines.push(vec![Span::styled(
                 r.list_view(),
-                Style::default().fg(Color::DarkGray),
+                role::dim(),
             )]);
 
             sidecar.push(LineType::MessageContent);
@@ -787,7 +788,7 @@ impl Message {
 
             lines.push(vec![Span::styled(
                 format!("{} {} (enter to view)", count, noun),
-                Style::default().fg(Color::DarkGray),
+                role::dim(),
             )]);
 
             sidecar.push(LineType::MessageContent);

@@ -1,7 +1,7 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Style};
+use ratatui::style::Style;
 use ratatui::widgets::{Block, Borders, Paragraph, Widget};
 
 use crate::consumed;
@@ -57,9 +57,9 @@ pub struct ButtonWidget<'a> {
 impl Widget for ButtonWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let color = if self.button.focused {
-            Color::LightGreen
+            crate::theme::palette::NEON_GREEN
         } else {
-            Color::DarkGray
+            crate::theme::palette::FG_DIM
         };
 
         let area = Layout::default()

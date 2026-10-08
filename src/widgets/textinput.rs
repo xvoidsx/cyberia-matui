@@ -4,7 +4,7 @@ use crate::widgets::{EventResult, Focusable};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::{Color, Style};
+use ratatui::style::Style;
 use ratatui::widgets::{Block, Borders, Paragraph, Widget};
 use std::cell::Cell;
 
@@ -220,9 +220,9 @@ impl TextInputWidget<'_> {
 impl Widget for TextInputWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let color = if self.textinput.focused {
-            Color::LightGreen
+            crate::theme::palette::NEON_GREEN
         } else {
-            Color::DarkGray
+            crate::theme::palette::FG_DIM
         };
 
         Block::default()

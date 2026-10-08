@@ -196,7 +196,7 @@ fn render_check(input: &TextInput, area: Rect, buf: &mut Buffer) {
 
     Paragraph::new("Code:")
         .alignment(Alignment::Right)
-        .style(Style::default().fg(Color::LightGreen))
+        .style(crate::theme::role::success())
         .render(input_splits[0], buf);
 
     input.widget().render(input_splits[1], buf);

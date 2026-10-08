@@ -22,6 +22,9 @@ pub mod settings;
 
 pub mod markdown;
 pub mod media;
+
+/// nightshadeNeon theme — the xvoidsx design language.
+pub mod theme;
 /// Using external apps to do our bidding
 pub mod spawn;
 

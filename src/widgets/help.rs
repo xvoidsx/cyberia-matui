@@ -83,7 +83,7 @@ impl Widget for HelpWidget {
         Table::new(rows, widths)
             .header(
                 Row::new(vec!["Key", "Description"])
-                    .style(Style::default().fg(Color::Green))
+                    .style(crate::theme::role::success())
                     .bottom_margin(1),
             )
             .column_spacing(1)
@@ -183,7 +183,7 @@ fn command_rows() -> Vec<Row<'static>> {
             "Hide a user's messages, everywhere, from now on.",
         ]),
         Row::new(vec![":unignore", "Stop ignoring a user."]),
-        Row::new(vec![":q", "Quit Matui."]),
+        Row::new(vec![":q", "Quit Cyberia."]),
         Row::new(vec![":logout", "Log out, remove this session, and quit."]),
         Row::new(vec!["?", "Back to key bindings."]),
     ]

@@ -14,6 +14,7 @@ use crate::widgets::react::ReactResult;
 use crate::widgets::search::Search;
 use crate::widgets::upload::Upload;
 use crate::widgets::{EventResult, get_margin};
+use crate::theme::role;
 use crate::{KeyCombo, consumed, limit_list, pretty_list, truncate};
 use anyhow::bail;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -1109,11 +1110,15 @@ impl Widget for ChatWidget<'_> {
 
         // render the header
         let header = Block::default()
-            .title(truncate(header_text, (splits[0].width - 8).into()))
+            .title(Span::styled(
+                truncate(header_text, (splits[0].width - 8).into()),
+                role::accent_bold(),
+            ))
             .title_alignment(Alignment::Center)
             .style(Style::default().bg(Color::Reset))
             .borders(Borders::ALL)
-            .border_type(BorderType::Rounded);
+            .border_type(BorderType::Rounded)
+            .border_style(role::border());
 
         header.render(splits[0], buf);
 
@@ -1124,8 +1129,8 @@ impl Widget for ChatWidget<'_> {
             .constraints([Constraint::Percentage(100)].as_ref())
             .split(splits[0])[0];
 
-        let (p_content, p_color) = if let Some(typing) = &self.chat.typing {
-            (typing.to_string(), Color::Yellow)
+        let (p_content, p_style) = if let Some(typing) = &self.chat.typing {
+            (typing.to_string(), role::typing())
         } else if self.chat.fetching.get() {
             let term = if self.chat.search_term.is_empty() {
                 "Loading"
@@ -1135,14 +1140,14 @@ impl Widget for ChatWidget<'_> {
 
             (
                 format!("{}... ({})", term, self.chat.events.len()),
-                Color::Yellow,
+                role::loading(),
             )
         } else {
-            (self.chat.pretty_members().to_string(), Color::Magenta)
+            (self.chat.pretty_members().to_string(), role::accent())
         };
 
         Paragraph::new(p_content)
-            .style(Style::default().fg(p_color))
+            .style(p_style)
             .render(p_area, buf);
 
         let mut line_types = self.chat.line_types.lock().unwrap();

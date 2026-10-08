@@ -17,6 +17,7 @@ use crate::widgets::get_margin;
 use crate::widgets::textinput::TextInput;
 
 use super::EventResult;
+use crate::theme::role;
 
 pub struct Rooms {
     pub textinput: TextInput,
@@ -188,11 +189,12 @@ impl Widget for RoomsWidget<'_> {
 
         // Render the main block
         let block = Block::default()
-            .title("Rooms")
+            .title(Span::styled("C Y B E R I A", role::brand()))
             .title_alignment(Alignment::Center)
             .style(Style::default().bg(Color::Reset))
             .borders(Borders::ALL)
-            .border_type(BorderType::Rounded);
+            .border_type(BorderType::Rounded)
+            .border_style(role::border());
 
         block.render(area, buf);
 
@@ -218,7 +220,7 @@ impl Widget for RoomsWidget<'_> {
             .split(splits[1])[0];
 
         let mut list_state = self.rooms.list_state.take();
-        let list = List::new(items).highlight_symbol("> ");
+        let list = List::new(items).highlight_style(role::highlight_symbol()).highlight_symbol("> ");
         StatefulWidget::render(list, area, buf, &mut list_state);
         self.rooms.list_state.set(list_state)
     }
@@ -234,21 +236,21 @@ fn make_list_item(room: &DecoratedRoom) -> ListItem<'_> {
     if unread > 0 {
         spans.push(Span::styled(
             format!(" ({})", unread),
-            Style::default().fg(Color::DarkGray),
+            role::dim(),
         ));
     }
 
     if highlights > 0 {
         spans.push(Span::styled(
             format!(" ({})", highlights),
-            Style::default().fg(Color::Green),
+            role::accent_bold(),
         ));
     }
 
     let mut lines = Text::from(Line::from(spans));
 
     let spans = if room.last_sender.is_none() || room.last_message.is_none() {
-        vec![Span::styled("", Style::default().fg(Color::DarkGray))]
+        vec![Span::styled("", role::dim())]
     } else {
         vec![Span::styled(
             format!(
@@ -256,7 +258,7 @@ fn make_list_item(room: &DecoratedRoom) -> ListItem<'_> {
                 room.last_sender.clone().unwrap_or_default(),
                 room.last_message.clone().unwrap_or_default()
             ),
-            Style::default().fg(Color::DarkGray),
+            role::dim(),
         )]
     };
 

@@ -136,7 +136,7 @@ impl Widget for UploadWidget<'_> {
         Paragraph::new(format!("File: {}", self.upload.current_filename())).render(splits[0], buf);
         self.upload.input.widget().render(splits[2], buf);
         Paragraph::new("* Captions might not be visible to people using older apps.")
-            .style(Style::default().fg(Color::DarkGray))
+            .style(crate::theme::role::dim())
             .render(splits[4], buf);
     }
 }

@@ -209,8 +209,11 @@ impl Notify {
     }
 
     fn get_cache_path(key: &str) -> PathBuf {
-        let mut path = dirs::cache_dir().expect("no cache directory");
-        path.push("matui");
+        let base = dirs::cache_dir().expect("no cache directory");
+        let mut path = base.join("cyberia");
+        if !path.exists() && base.join("matui").exists() {
+            path = base.join("matui");
+        }
         fs::create_dir_all(&path).unwrap();
         path.push(key);
         path

@@ -113,9 +113,15 @@ impl Default for Matrix {
 
 impl Matrix {
     fn dirs() -> (PathBuf, PathBuf) {
-        let data_dir = dirs::data_dir()
-            .expect("no data directory found")
-            .join("matui");
+        // cyberia is the new home; fall back to the old matui dir so existing
+        // sessions (and their E2EE keys) migrate seamlessly.
+        let base = dirs::data_dir().expect("no data directory found");
+        let data_dir = base.join("cyberia");
+        let data_dir = if !data_dir.exists() && base.join("matui").exists() {
+            base.join("matui")
+        } else {
+            data_dir
+        };
 
         let session_file = data_dir.join("session");
         (data_dir, session_file)
@@ -1344,7 +1350,7 @@ async fn login(
     client
         .matrix_auth()
         .login_username(username, password)
-        .initial_device_display_name("Matui")
+        .initial_device_display_name("Cyberia")
         .send()
         .await?;
 
@@ -1400,10 +1406,10 @@ async fn login_oauth_flow(
         vec![OAuthGrantType::AuthorizationCode {
             redirect_uris: vec![redirect_url.clone()],
         }],
-        Localized::new(Url::parse("https://github.com/pkulak/matui")?, []),
+        Localized::new(Url::parse("https://github.com/xvoidsx/cyberia-matui")?, []),
     );
 
-    metadata.client_name = Some(Localized::new("Matui".to_string(), []));
+    metadata.client_name = Some(Localized::new("Cyberia".to_string(), []));
 
     let oauth = client.oauth();
 
