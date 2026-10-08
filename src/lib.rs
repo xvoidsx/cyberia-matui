@@ -31,6 +31,9 @@ pub mod kitty;
 /// Using external apps to do our bidding
 pub mod spawn;
 
+/// System clipboard image pasting.
+pub mod clipboard;
+
 pub fn limit_list<T>(iter: T, limit: usize, total: usize, prefix: Option<&str>) -> Vec<String>
 where
     T: Iterator<Item = String>,

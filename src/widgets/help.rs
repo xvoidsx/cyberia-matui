@@ -137,6 +137,10 @@ fn key_rows() -> Vec<Row<'static>> {
         ]),
         Row::new(vec!["u", "Upload a file with an optional caption."]),
         Row::new(vec![
+            "p",
+            "Paste an image from the clipboard with an optional caption.",
+        ]),
+        Row::new(vec![
             "m",
             "Mute or unmute the current room (until restart).",
         ]),

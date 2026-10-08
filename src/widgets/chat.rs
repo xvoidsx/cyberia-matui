@@ -1,4 +1,5 @@
 use crate::app::{App, Popup};
+use crate::clipboard::clipboard_image;
 use crate::event::{Event, EventHandler};
 use crate::handler::Batch;
 use crate::matrix::matrix::Matrix;
@@ -8,6 +9,7 @@ use crate::spawn::{get_file_paths, spawn_editor};
 use crate::widgets::EventResult::Consumed;
 use crate::widgets::command::Command;
 use crate::widgets::compose::Compose;
+use crate::widgets::error::Error;
 use crate::widgets::message::{LineType, Message, Reaction, ReactionEvent};
 use crate::widgets::react::React;
 use crate::widgets::react::ReactResult;
@@ -457,6 +459,24 @@ impl Chat {
 
                 Ok(Consumed(Box::new(move |app| {
                     app.set_popup(Popup::Upload(Upload::new(matrix, room, paths)))
+                })))
+            }
+            KeyCode::Char('p') => {
+                let path = clipboard_image()?;
+
+                let Some(path) = path else {
+                    return Ok(Consumed(Box::new(|app| {
+                        app.set_popup(Popup::Error(Error::new(
+                            "no image on the clipboard".to_string(),
+                        )))
+                    })));
+                };
+
+                let matrix = self.matrix.clone();
+                let room = self.room();
+
+                Ok(Consumed(Box::new(move |app| {
+                    app.set_popup(Popup::Upload(Upload::new(matrix, room, vec![path])))
                 })))
             }
             KeyCode::Char('/') => Ok(Consumed(Box::new(|app| {
