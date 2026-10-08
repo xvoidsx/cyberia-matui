@@ -1,33 +1,40 @@
-name: Release
-
-permissions:
-  contents: write
+name: release
 
 on:
   push:
     tags:
-      - v[0-9]+.*
+      - "cyberia-v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to attach the binary to"
+        required: true
+        type: string
+
+permissions:
+  contents: write
 
 jobs:
-  create-release:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: taiki-e/create-gh-release-action@v1
+      - uses: actions/checkout@v4
         with:
-          changelog: CHANGELOG.md
-          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ inputs.tag || github.ref_name }}
 
-  upload-assets:
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v3
-      - uses: taiki-e/upload-rust-binary-action@v1
+      - name: install rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          bin: matui
-          token: ${{ secrets.GITHUB_TOKEN }}
+          toolchain: "1.98.1"
+
+      - name: build
+        run: cargo build --release
+
+      - name: strip
+        run: strip target/release/cyberia
+
+      - name: attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          files: target/release/cyberia
