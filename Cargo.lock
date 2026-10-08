@@ -1216,6 +1216,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "cyberia"
+version = "1.1.0"
+dependencies = [
+ "anyhow",
+ "ashpd",
+ "base64 0.22.1",
+ "chrono",
+ "config",
+ "crossterm",
+ "dirs",
+ "emojis",
+ "futures",
+ "human_bytes",
+ "image",
+ "lazy_static",
+ "linkify",
+ "log",
+ "log-panics",
+ "matrix-sdk",
+ "mime",
+ "native-dialog",
+ "notify",
+ "notify-rust",
+ "once_cell",
+ "open",
+ "qrcode",
+ "rand 0.10.3",
+ "ratatui",
+ "regex",
+ "serde",
+ "simple-logging",
+ "tempfile",
+ "termimad",
+ "textwrap",
+ "timeago",
+ "tokio",
+ "url",
+ "zbus",
+]
+
+[[package]]
 name = "darling"
 version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3419,46 +3460,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
-]
-
-[[package]]
-name = "matui"
-version = "1.0.2"
-dependencies = [
- "anyhow",
- "ashpd",
- "chrono",
- "config",
- "crossterm",
- "dirs",
- "emojis",
- "futures",
- "human_bytes",
- "image",
- "lazy_static",
- "linkify",
- "log",
- "log-panics",
- "matrix-sdk",
- "mime",
- "native-dialog",
- "notify",
- "notify-rust",
- "once_cell",
- "open",
- "qrcode",
- "rand 0.10.3",
- "ratatui",
- "regex",
- "serde",
- "simple-logging",
- "tempfile",
- "termimad",
- "textwrap",
- "timeago",
- "tokio",
- "url",
- "zbus",
 ]
 
 [[package]]
