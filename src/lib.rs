@@ -25,6 +25,9 @@ pub mod media;
 
 /// nightshadeNeon theme — the xvoidsx design language.
 pub mod theme;
+
+/// Kitty graphics protocol (inline terminal images).
+pub mod kitty;
 /// Using external apps to do our bidding
 pub mod spawn;
 

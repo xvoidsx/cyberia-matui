@@ -1,3 +1,4 @@
+use matrix_sdk::ruma::events::room::MediaSource;
 use matrix_sdk::ruma::events::room::message::MessageType::File;
 
 use crate::media::get_attachment_info;
@@ -127,11 +128,24 @@ impl Matrix {
         (data_dir, session_file)
     }
 
-    fn client(&self) -> Client {
+    pub(crate) fn client(&self) -> Client {
         self.client
             .get()
             .expect("client expected but not set")
             .to_owned()
+    }
+
+    /// Raw bytes for a media URI, for inline rendering. Uses the SDK cache.
+    pub(crate) async fn media_bytes(&self, source: &MediaSource) -> Option<Vec<u8>> {
+        let request = MediaRequestParameters {
+            source: source.to_owned(),
+            format: MediaFormat::File,
+        };
+        self.client()
+            .media()
+            .get_media_content(&request, true)
+            .await
+            .ok()
     }
 
     pub fn wrap_room(&self, room: &Room) -> Option<DecoratedRoom> {

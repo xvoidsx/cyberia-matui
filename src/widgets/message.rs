@@ -12,6 +12,7 @@ use timeago::Formatter;
 use crate::matrix::matrix::{AfterDownload, Matrix, pad_emoji};
 use crate::matrix::username::Username;
 use crate::spawn::view_text;
+use crate::kitty;
 use crate::theme::role;
 use crate::{limit_list, pretty_list};
 use chrono::offset::Local;
@@ -726,6 +727,22 @@ impl Message {
                 )]);
 
                 sidecar.push(LineType::MessageContent);
+            }
+        } else if let Image(content) = &self.body
+            && kitty::supported()
+            && let Some(ph) = kitty::placeholder(&crate::kitty::cache_key(&content.source), width)
+        {
+            // inline image via the kitty graphics protocol
+            for line in ph {
+                lines.push(line.spans);
+                sidecar.push(LineType::MessageContent);
+            }
+            // caption under the image
+            if let Some(caption) = content.caption() {
+                for l in textwrap::wrap(caption, width) {
+                    lines.push(vec![Span::styled(l.to_string(), role::dim())]);
+                    sidecar.push(LineType::MessageContent);
+                }
             }
         } else {
             let wrapped = textwrap::wrap(body, width);

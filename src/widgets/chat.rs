@@ -14,6 +14,7 @@ use crate::widgets::react::ReactResult;
 use crate::widgets::search::Search;
 use crate::widgets::upload::Upload;
 use crate::widgets::{EventResult, get_margin};
+use crate::kitty;
 use crate::theme::role;
 use crate::{KeyCombo, consumed, limit_list, pretty_list, truncate};
 use anyhow::bail;
@@ -23,7 +24,7 @@ use matrix_sdk::RoomMemberships;
 use matrix_sdk::room::{Room, RoomMember};
 use matrix_sdk::ruma::events::receipt::ReceiptEventContent;
 use matrix_sdk::ruma::events::room::member::{MembershipChange, RoomMemberEvent};
-use matrix_sdk::ruma::events::room::message::MessageType::Text;
+use matrix_sdk::ruma::events::room::message::MessageType::{Image, Text};
 use matrix_sdk::ruma::events::room::message::ReplyWithinThread;
 use matrix_sdk::ruma::events::room::name::RoomNameEvent;
 use matrix_sdk::ruma::events::room::power_levels::UserPowerLevel;
@@ -1158,6 +1159,12 @@ impl Widget for ChatWidget<'_> {
         let window = &self.chat.messages[self.chat.window.clone()];
 
         for m in window.iter() {
+            // kick off background load + transmit for visible images
+            if let Some(msg) = m.message()
+                && let Image(content) = &msg.body
+            {
+                kitty::ensure(&content.source, self.chat.matrix.clone());
+            }
             items.append(&mut m.to_list_items((area.width - 2) as usize, &mut buffer));
             line_types.append(&mut buffer);
         }
