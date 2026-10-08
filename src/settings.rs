@@ -119,12 +119,6 @@ pub fn max_events() -> usize {
     }
 }
 
-pub fn respect_notification_close_reason() -> bool {
-    get_settings()
-        .get("respect_notification_close_reason")
-        .unwrap_or_default()
-}
-
 pub fn mentions_override_mute() -> bool {
     get_settings().get("mentions_override_mute").unwrap_or(true)
 }

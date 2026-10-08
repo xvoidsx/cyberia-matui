@@ -128,8 +128,6 @@ impl Notify {
     ) -> anyhow::Result<()> {
         use crate::app::App;
         use crate::handler::MatuiEvent;
-        use crate::settings::respect_notification_close_reason;
-        use log::info;
         use notify_rust::{CloseReason, Hint};
 
         let mut notification = notify_rust::Notification::new();
@@ -167,11 +165,9 @@ impl Notify {
                     if watch {
                         std::thread::spawn(move || {
                             handle.on_close(move |reason: CloseReason| {
-                                info!("close reason {:?}", reason);
-
-                                if respect_notification_close_reason()
-                                    && !matches!(reason, CloseReason::CloseAction)
-                                {
+                                // Only an explicit click takes you to the room.
+                                // Expiry or dismissal must never steal focus.
+                                if !matches!(reason, CloseReason::CloseAction) {
                                     return;
                                 }
 
