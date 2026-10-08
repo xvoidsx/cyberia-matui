@@ -70,9 +70,9 @@ const DIACRITICS: [char; 297] = [
     '\u{1D244}',
 ];
 
-/// Max image width in terminal columns.
+/// Max image width in terminal columns (fallback when the live size is unknown).
 const MAX_COLS: usize = 60;
-/// Max image height in terminal rows.
+/// Max image height in terminal rows (fallback when the live size is unknown).
 const MAX_ROWS: usize = 20;
 /// Terminal cells are roughly twice as tall as they are wide.
 const CELL_ASPECT: f64 = 2.0;
@@ -161,6 +161,14 @@ pub fn ensure(source: &MediaSource, matrix: Matrix) {
     });
 }
 
+/// Live terminal dimensions in cells, or `None` when they can't be queried
+/// (no TTY, e.g. in tests). Cheap syscall; only used on the transmit path.
+fn term_size() -> Option<(usize, usize)> {
+    crossterm::terminal::size()
+        .ok()
+        .map(|(w, h)| (w as usize, h as usize))
+}
+
 /// Placeholder lines for a loaded image, or `None` if not ready.
 ///
 /// Called during render (on the main thread, before ratatui draws), so this
@@ -171,14 +179,19 @@ pub fn placeholder(url: &str, max_cols: usize) -> Option<Vec<Line<'static>>> {
         let cache = CACHE.lock().unwrap();
         match cache.get(url) {
             Some(State::Downloaded { png, cols, rows }) => {
-                Some((png.clone(), *cols, *rows))
+                // images may use up to half the terminal height — a desktop
+                // screenshot in a wide terminal renders large and complete,
+                // in a narrow one it scales down gracefully
+                let max_rows = term_size().map(|(_, h)| (h / 2).max(10)).unwrap_or(MAX_ROWS);
+                let (cols, rows) = display_size(*cols, *rows, max_cols, max_rows);
+                Some((png.clone(), cols, rows))
             }
             _ => None,
         }
     };
     if let Some((png, cols, rows)) = transmit_now {
         let id = next_id();
-        if transmit(&png, id).is_some() {
+        if transmit(&png, id, cols, rows).is_some() {
             let mut cache = CACHE.lock().unwrap();
             // evict oldest if over the limit
             let mut ids = IDS.lock().unwrap();
@@ -190,6 +203,8 @@ pub fn placeholder(url: &str, max_cols: usize) -> Option<Vec<Line<'static>>> {
                 cache.retain(|_, s| !matches!(s, State::Ready { id, .. } if *id == old));
             }
             ids.push(id);
+            // store the displayed (clamped) size — the image was scaled to
+            // exactly this grid on transmit
             cache.insert(url.to_string(), State::Ready { id, cols, rows });
         } else {
             CACHE
@@ -202,13 +217,20 @@ pub fn placeholder(url: &str, max_cols: usize) -> Option<Vec<Line<'static>>> {
 
     let cache = CACHE.lock().unwrap();
     match cache.get(url) {
-        Some(State::Ready { id, cols, rows }) => {
-            let cols = (*cols).min(max_cols).min(DIACRITICS.len());
-            let rows = (*rows).min(DIACRITICS.len());
-            Some(placeholder_lines(*id, cols, rows))
-        }
+        Some(State::Ready { id, cols, rows }) => Some(placeholder_lines(*id, *cols, *rows)),
         _ => None,
     }
+}
+
+/// The grid actually displayed (and transmitted): the fitted size clamped to
+/// the available render width, half the terminal height, and the diacritic
+/// table. Transmit and the placeholder lines must agree on this, or the
+/// image scales to a grid the placeholders don't cover.
+fn display_size(cols: usize, rows: usize, max_cols: usize, max_rows: usize) -> (usize, usize) {
+    (
+        cols.min(max_cols).min(DIACRITICS.len()),
+        rows.min(max_rows).min(DIACRITICS.len()),
+    )
 }
 
 fn placeholder_lines(id: u32, cols: usize, rows: usize) -> Vec<Line<'static>> {
@@ -249,19 +271,30 @@ async fn load_image(source: &MediaSource, matrix: &Matrix) -> Option<(Vec<u8>, u
     Some((png, cols, rows))
 }
 
-/// Aspect-preserving fit into the MAX_COLS x MAX_ROWS cell box.
+/// Aspect-preserving fit. Download-time bounds are deliberately generous —
+/// the full terminal width/height — so the render-time clamp in
+/// `display_size` (message width, half terminal height) is the one that
+/// actually sizes the image. Falls back to the legacy 60x20 box when the
+/// terminal size can't be queried.
 fn fit(w: u32, h: u32) -> (usize, usize) {
+    let (max_cols, max_rows) = term_size().unwrap_or((MAX_COLS, MAX_ROWS));
+    fit_in(w, h, max_cols, max_rows)
+}
+
+/// Aspect-preserving fit into an explicit max_cols x max_rows cell box.
+/// Testable core of `fit`.
+fn fit_in(w: u32, h: u32, max_cols: usize, max_rows: usize) -> (usize, usize) {
     let aspect = w as f64 / h as f64 * CELL_ASPECT; // cols per row
-    let mut cols = MAX_COLS;
+    let mut cols = max_cols;
     let mut rows = (cols as f64 / aspect).round() as usize;
-    if rows > MAX_ROWS {
-        rows = MAX_ROWS;
+    if rows > max_rows {
+        rows = max_rows;
         cols = (rows as f64 * aspect).round() as usize;
     }
     (cols.max(4), rows.max(2))
 }
 
-fn transmit(png: &[u8], id: u32) -> Option<()> {
+fn transmit(png: &[u8], id: u32, cols: usize, rows: usize) -> Option<()> {
     let b64 = BASE64.encode(png);
     let chunks: Vec<&str> = b64
         .as_bytes()
@@ -276,15 +309,25 @@ fn transmit(png: &[u8], id: u32) -> Option<()> {
     for (i, chunk) in chunks.iter().enumerate() {
         let last = i + 1 == chunks.len();
         if i == 0 {
-            // transmit + create virtual placement, quiet (no response)
-            write!(out, "\x1b_Ga=T,U=1,i={id},f=100,q=2,m={};{chunk}\x1b\\",
-                if last { 0 } else { 1 }).ok()?;
+            // transmit + create virtual placement, quiet (no response).
+            // c/r scale the image to exactly the placeholder grid.
+            write!(out, "{header}{chunk}\x1b\\", header = transmit_header(id, cols, rows, !last))
+                .ok()?;
         } else {
             write!(out, "\x1b_Gm={};{chunk}\x1b\\", if last { 0 } else { 1 }).ok()?;
         }
     }
     out.flush().ok()?;
     Some(())
+}
+
+/// Control sequence opening a transmit: action, id, format, quiet mode, and
+/// the exact placeholder grid (c/r) kitty must scale the image to.
+fn transmit_header(id: u32, cols: usize, rows: usize, more: bool) -> String {
+    format!(
+        "\x1b_Ga=T,U=1,i={id},f=100,q=2,c={cols},r={rows},m={};",
+        if more { 1 } else { 0 }
+    )
 }
 
 fn delete_image(id: u32) {
@@ -323,5 +366,50 @@ mod tests {
             Some(Color::Rgb(0x12, 0x34, 0x56)) => {}
             other => panic!("unexpected fg: {other:?}"),
         }
+    }
+
+    #[test]
+    fn transmit_header_carries_grid_size() {
+        let h = transmit_header(42, 40, 12, false);
+        assert!(h.contains("i=42"), "id missing: {h}");
+        assert!(h.contains("c=40"), "cols missing: {h}");
+        assert!(h.contains("r=12"), "rows missing: {h}");
+        assert!(h.contains("m=0;"), "last-chunk marker missing: {h}");
+        let h2 = transmit_header(42, 40, 12, true);
+        assert!(h2.contains("m=1;"), "more-chunks marker missing: {h2}");
+    }
+
+    #[test]
+    fn display_size_clamps_to_render_width_and_table() {
+        // fits: unchanged
+        assert_eq!(display_size(40, 12, 80, 20), (40, 12));
+        // render width wins over fitted size
+        assert_eq!(display_size(60, 20, 40, 20), (40, 20));
+        // diacritic table is the hard ceiling
+        assert_eq!(
+            display_size(400, 500, 1000, 1000),
+            (DIACRITICS.len(), DIACRITICS.len())
+        );
+    }
+
+    #[test]
+    fn display_size_clamps_rows_to_terminal_half() {
+        // half-terminal height wins over fitted rows
+        assert_eq!(display_size(40, 30, 80, 15), (40, 15));
+        // fitted rows under the cap pass through
+        assert_eq!(display_size(40, 12, 80, 20), (40, 12));
+    }
+
+    #[test]
+    fn fit_in_respects_dynamic_bounds() {
+        // wide terminal: 1920x1080 fills 100 cols, aspect-preserved
+        let (cols, rows) = fit_in(1920, 1080, 100, 50);
+        assert_eq!(cols, 100);
+        assert!(rows <= 50, "rows was {rows}");
+        let ratio = cols as f64 / rows as f64;
+        assert!((ratio - 3.56).abs() < 0.3, "ratio was {ratio}");
+        // tall image: height cap kicks in, width shrinks to preserve aspect
+        let (cols, rows) = fit_in(100, 2000, 100, 20);
+        assert_eq!((cols, rows), (4, 20));
     }
 }
