@@ -23,6 +23,7 @@ pub mod confirm;
 pub mod message;
 pub mod react;
 pub mod receipts;
+pub mod splash;
 pub mod textinput;
 
 #[macro_export]

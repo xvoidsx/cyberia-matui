@@ -29,6 +29,7 @@ use crate::widgets::recover::Recover;
 use crate::widgets::rooms::Rooms;
 use crate::widgets::search::Search;
 use crate::widgets::signin::Signin;
+use crate::widgets::splash::Splash;
 use crate::widgets::upload::Upload;
 use ratatui::Frame;
 
@@ -61,6 +62,10 @@ pub struct App {
     /// Invites waiting to be shown, and every room we've already asked about
     pub invites: VecDeque<(Room, String)>,
     pub invites_seen: HashSet<OwnedRoomId>,
+
+    /// Animated startup splash; a pure render overlay, gone after ~2s
+    /// or on any keypress.
+    pub splash: Option<Splash>,
 }
 
 impl App {
@@ -82,6 +87,7 @@ impl App {
             receipts: VecDeque::new(),
             invites: VecDeque::new(),
             invites_seen: HashSet::new(),
+            splash: Some(Splash::new()),
         }
     }
 
@@ -153,6 +159,21 @@ impl App {
 
         let mut render = false;
 
+        // advance the startup splash; it's a pure render overlay, so the
+        // Matrix init on the first tick still runs underneath it
+        let splash_done = if let Some(s) = self.splash.as_mut() {
+            s.tick_frame();
+            s.done()
+        } else {
+            false
+        };
+        if splash_done {
+            self.splash = None;
+        }
+        if self.splash.is_some() {
+            render = true;
+        }
+
         // show the next pending invite whenever the popup slot is free; it
         // stays at the front of the queue until answered, so a stomped popup
         // comes right back
@@ -185,6 +206,19 @@ impl App {
 
     /// Renders the user interface widgets.
     pub fn render(&mut self, frame: &mut Frame) {
+        if self.splash.is_some() {
+            let area = frame.area();
+            if !crate::widgets::splash::fits(area) {
+                // too small for theater; skip entirely
+                self.splash = None;
+            } else {
+                if let Some(s) = self.splash.as_mut() {
+                    s.render_frame(frame);
+                }
+                return;
+            }
+        }
+
         if let Some(t) = &self.thread {
             frame.render_widget(t.widget(), frame.area());
         } else if let Some(c) = &self.chat {

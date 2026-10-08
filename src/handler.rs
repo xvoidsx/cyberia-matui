@@ -296,6 +296,12 @@ pub fn handle_key_event(
         return Ok(());
     }
 
+    // any key dismisses the startup splash; the keypress itself is consumed
+    if app.splash.is_some() {
+        app.splash = None;
+        return Ok(());
+    }
+
     // give the popup first crack at the event
     let result = if let Some(w) = &mut app.popup {
         w.key_event(&key_event, handler)
