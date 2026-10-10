@@ -150,7 +150,7 @@ fn key_rows() -> Vec<Row<'static>> {
         ]),
         Row::new(vec![
             "A",
-            "Ambient mode: katakana rain screensaver (any key exits).",
+            "Ambient mode: katakana rain; recent messages glitch through (any key exits).",
         ]),
         Row::new(vec!["/", "Search the current room"]),
         Row::new(vec![":", "Open the command prompt."]),

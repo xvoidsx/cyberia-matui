@@ -133,7 +133,17 @@ pub struct Splash {
     /// Ambient mode: loops forever until a keypress dismisses it.
     /// Used for the on-demand screensaver (keybind `A`).
     ambient: bool,
+    /// Recent chat messages to glitch through the rain in ambient mode.
+    /// (sender display name, message body)
+    ambient_messages: Vec<(String, String)>,
 }
+
+/// Ticks per ambient message cycle (250ms each): 8 materialize,
+/// 20 hold, 8 dissolve, 4 gap.
+const AMBIENT_MSG_CYCLE: usize = 40;
+const AMBIENT_MSG_MATERIALIZE: usize = 8;
+const AMBIENT_MSG_HOLD: usize = 20;
+const AMBIENT_MSG_DISSOLVE: usize = 8;
 
 impl Splash {
     pub fn new() -> Self {
@@ -143,18 +153,21 @@ impl Splash {
             rng: XorShift32(0xC0FFEE),
             size: None,
             ambient: false,
+            ambient_messages: Vec::new(),
         }
     }
 
     /// Looping variant for ambient mode: title starts fully revealed,
     /// rain never stops, and `done()` stays false until dismissed.
-    pub fn ambient() -> Self {
+    /// Recent messages glitch in and out through the rain.
+    pub fn ambient(messages: Vec<(String, String)>) -> Self {
         Self {
             frame: TOTAL_FRAMES,
             cols: Vec::new(),
             rng: XorShift32(0xC0FFEE),
             size: None,
             ambient: true,
+            ambient_messages: messages,
         }
     }
 
@@ -206,6 +219,7 @@ impl Splash {
         self.draw_rain(buf, area);
         self.draw_title(buf, area);
         self.draw_tagline(buf, area);
+        self.draw_messages(buf, area);
         self.draw_footer(buf, area);
     }
 
@@ -263,8 +277,7 @@ impl Splash {
         }
     }
 
-    fn draw_tagline(&self, buf: &mut Buffer, area: Rect) {
-        // fades in over the last 4 ticks
+    fn draw_tagline(&self, buf: &mut Buffer, area: Rect) {        // fades in over the last 4 ticks
         let step = match self.frame {
             4 => Some(Color::Rgb(0, 64, 64)),
             5 => Some(Color::Rgb(0, 128, 128)),
@@ -279,6 +292,91 @@ impl Splash {
             .saturating_sub(TAGLINE.len() as u16)
             / 2;
         buf.set_string(x0, y, TAGLINE, Style::default().fg(color));
+    }
+
+    /// Deterministic 0..1 pseudo-random from a seed and index.
+    /// Used for per-character glitch state so the rain RNG stays untouched.
+    fn glitch_rand(seed: u32, idx: usize) -> f32 {
+        let h = seed
+            .wrapping_mul(0x9E3779B9)
+            .wrapping_add((idx as u32).wrapping_mul(0x85EBCA6B))
+            .wrapping_mul(0xC2B2AE35);
+        (h as f32) / (u32::MAX as f32)
+    }
+
+    /// Recent chat messages materializing through the rain in ambient mode.
+    /// Each message cycles: glitch-in, hold, glitch-out, gap.
+    fn draw_messages(&mut self, buf: &mut Buffer, area: Rect) {
+        if !self.ambient || self.ambient_messages.is_empty() {
+            return;
+        }
+
+        let cycle = (self.frame / AMBIENT_MSG_CYCLE) % self.ambient_messages.len();
+        let tick = self.frame % AMBIENT_MSG_CYCLE;
+
+        // gap at the end of the cycle: nothing to show
+        if tick >= AMBIENT_MSG_MATERIALIZE + AMBIENT_MSG_HOLD + AMBIENT_MSG_DISSOLVE {
+            return;
+        }
+
+        let (sender, body) = &self.ambient_messages[cycle];
+        // single line, truncated to fit
+        let max_w = area.width.saturating_sub(8) as usize;
+        let mut text = format!("{}: {}", sender, body);
+        // collapse newlines; chat bodies can be multi-line
+        text = text.replace('\n', " ");
+        let chars: Vec<char> = text.chars().take(max_w).collect();
+        if chars.is_empty() {
+            return;
+        }
+
+        // progress 0..1: how "locked in" the message is
+        let progress = if tick < AMBIENT_MSG_MATERIALIZE {
+            tick as f32 / AMBIENT_MSG_MATERIALIZE as f32
+        } else if tick < AMBIENT_MSG_MATERIALIZE + AMBIENT_MSG_HOLD {
+            1.0
+        } else {
+            1.0 - (tick - AMBIENT_MSG_MATERIALIZE - AMBIENT_MSG_HOLD) as f32
+                / AMBIENT_MSG_DISSOLVE as f32
+        };
+
+        let seed = (cycle as u32).wrapping_mul(0x1F3D5B7D).wrapping_add(0xA53A9);
+        let sender_len = sender.chars().count().min(chars.len());
+
+        // below the title, clear of the tagline
+        let y = (area.height * 3 / 4).min(area.height.saturating_sub(4));
+        let x0 = area.width.saturating_sub(chars.len() as u16) / 2;
+
+        for (i, &ch) in chars.iter().enumerate() {
+            let locked = Self::glitch_rand(seed, i) < progress;
+            // during hold, occasional flicker keeps it alive
+            let flicker = progress >= 1.0 && Self::glitch_rand(seed ^ 0x5F5F5F5F, i ^ tick) < 0.04;
+
+            let (glyph, style) = if locked && !flicker {
+                let color = if i < sender_len {
+                    palette::NEON_PINK
+                } else {
+                    Color::White
+                };
+                (ch, Style::default().fg(color))
+            } else {
+                (
+                    kana(&mut self.rng),
+                    Style::default()
+                        .fg(palette::NEON_PINK)
+                        .add_modifier(Modifier::BOLD),
+                )
+            };
+
+            // don't write past the right edge
+            let x = x0 + i as u16;
+            if x >= area.width {
+                break;
+            }
+            let cell = &mut buf[(x, y)];
+            cell.set_char(glyph);
+            cell.set_style(style);
+        }
     }
 
     fn draw_footer(&self, buf: &mut Buffer, area: Rect) {
@@ -399,5 +497,70 @@ mod tests {
         // midpoint-ish should be between green and cyan
         let mid = rain_color(0.2);
         assert!(mid != Color::Rgb(57, 255, 20));
+    }
+
+    #[test]
+    fn glitch_rand_is_deterministic_and_bounded() {
+        for seed in [0u32, 1, 0xA53A9, u32::MAX] {
+            for idx in [0usize, 1, 42, 1000] {
+                let r = Splash::glitch_rand(seed, idx);
+                assert!((0.0..1.0).contains(&r), "out of range: {r}");
+                assert_eq!(r, Splash::glitch_rand(seed, idx));
+            }
+        }
+        // different indices usually differ
+        assert_ne!(
+            Splash::glitch_rand(0xA53A9, 0),
+            Splash::glitch_rand(0xA53A9, 1)
+        );
+    }
+
+    #[test]
+    fn ambient_stores_messages() {
+        let msgs = vec![
+            ("alice".to_string(), "hello".to_string()),
+            ("bob".to_string(), "hi".to_string()),
+        ];
+        let s = Splash::ambient(msgs);
+        assert!(s.ambient);
+        assert_eq!(s.ambient_messages.len(), 2);
+        assert!(!s.done());
+    }
+
+    #[test]
+    fn ambient_message_cycle_math() {
+        // 40 ticks per message: 8 materialize, 20 hold, 8 dissolve, 4 gap
+        assert_eq!(AMBIENT_MSG_CYCLE, 40);
+        assert_eq!(
+            AMBIENT_MSG_MATERIALIZE + AMBIENT_MSG_HOLD + AMBIENT_MSG_DISSOLVE,
+            36
+        );
+    }
+
+    #[test]
+    fn ambient_renders_messages_without_panic() {
+        let msgs = vec![
+            ("alice".to_string(), "hello world".to_string()),
+            ("bob".to_string(), "line1\nline2".to_string()),
+        ];
+        let mut s = Splash::ambient(msgs);
+        let backend = TestBackend::new(80, 24);
+        let mut term = Terminal::new(backend).unwrap();
+        // walk through materialize, hold, dissolve, gap, and into the next message
+        for _ in 0..(AMBIENT_MSG_CYCLE + 10) {
+            s.tick_frame();
+            term.draw(|f| s.render_frame(f)).unwrap();
+        }
+    }
+
+    #[test]
+    fn ambient_without_messages_renders_fine() {
+        let mut s = Splash::ambient(vec![]);
+        let backend = TestBackend::new(80, 24);
+        let mut term = Terminal::new(backend).unwrap();
+        for _ in 0..10 {
+            s.tick_frame();
+            term.draw(|f| s.render_frame(f)).unwrap();
+        }
     }
 }

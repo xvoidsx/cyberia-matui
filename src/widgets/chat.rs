@@ -284,8 +284,31 @@ impl Chat {
             }
             KeyCode::Char('A') => {
                 use crate::widgets::splash::Splash;
-                Ok(Consumed(Box::new(|app| {
-                    app.splash = Some(Splash::ambient())
+                // recent text messages for the ambient rain to glitch through
+                let messages: Vec<(String, String)> = self
+                    .messages
+                    .iter()
+                    .filter_map(|item| item.message())
+                    .filter_map(|m| match &m.body {
+                        matrix_sdk::ruma::events::room::message::MessageType::Text(
+                            content,
+                        ) => {
+                            let body = content.body.trim();
+                            if body.is_empty() {
+                                None
+                            } else {
+                                Some((m.sender.to_string(), body.to_string()))
+                            }
+                        }
+                        _ => None,
+                    })
+                    .take(12)
+                    .collect();
+                // oldest first so the cycle feels chronological
+                let messages: Vec<(String, String)> =
+                    messages.into_iter().rev().collect();
+                Ok(Consumed(Box::new(move |app| {
+                    app.splash = Some(Splash::ambient(messages))
                 })))
             }
             KeyCode::Char('c') => {
