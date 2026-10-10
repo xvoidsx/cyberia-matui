@@ -27,10 +27,10 @@ const MIN_WIDTH: u16 = 30;
 const MIN_HEIGHT: u16 = 10;
 
 /// Tiny inline xorshift32 — no new dependencies for a splash screen.
-struct XorShift32(u32);
+pub(crate) struct XorShift32(pub(crate) u32);
 
 impl XorShift32 {
-    fn next(&mut self) -> u32 {
+    pub(crate) fn next(&mut self) -> u32 {
         let mut x = self.0;
         x ^= x << 13;
         x ^= x >> 17;
@@ -39,30 +39,30 @@ impl XorShift32 {
         x
     }
 
-    fn below(&mut self, n: u32) -> u32 {
+    pub(crate) fn below(&mut self, n: u32) -> u32 {
         self.next() % n.max(1)
     }
 
-    fn range_f32(&mut self, lo: f32, hi: f32) -> f32 {
+    pub(crate) fn range_f32(&mut self, lo: f32, hi: f32) -> f32 {
         lo + (self.next() as f32 / u32::MAX as f32) * (hi - lo)
     }
 }
 
-fn kana(rng: &mut XorShift32) -> char {
+pub(crate) fn kana(rng: &mut XorShift32) -> char {
     char::from_u32(0x30A0 + rng.below(96)).unwrap_or('\u{30A0}')
 }
 
-struct RainColumn {
-    x: u16,
-    head_y: f32,
-    speed: f32,
-    len: u16,
-    delay: u8,
-    glyphs: Vec<char>,
+pub(crate) struct RainColumn {
+    pub(crate) x: u16,
+    pub(crate) head_y: f32,
+    pub(crate) speed: f32,
+    pub(crate) len: u16,
+    pub(crate) delay: u8,
+    pub(crate) glyphs: Vec<char>,
 }
 
 impl RainColumn {
-    fn new(rng: &mut XorShift32, width: u16, stagger: bool) -> Self {
+    pub(crate) fn new(rng: &mut XorShift32, width: u16, stagger: bool) -> Self {
         let len = 5 + rng.below(11) as u16;
         let glyphs = (0..len).map(|_| kana(rng)).collect();
         Self {
@@ -75,14 +75,14 @@ impl RainColumn {
         }
     }
 
-    fn respawn(&mut self, rng: &mut XorShift32, width: u16, height: u16) {
+    pub(crate) fn respawn(&mut self, rng: &mut XorShift32, width: u16, height: u16) {
         *self = Self::new(rng, width, false);
         self.head_y = -(rng.below(10) as f32);
         self.delay = rng.below(4) as u8;
         let _ = height;
     }
 
-    fn substep(&mut self, rng: &mut XorShift32, height: u16, width: u16) {
+    pub(crate) fn substep(&mut self, rng: &mut XorShift32, height: u16, width: u16) {
         if self.delay > 0 {
             self.delay -= 1;
             return;
@@ -100,7 +100,7 @@ impl RainColumn {
 }
 
 /// Rain color ramp: neon green head -> cyan -> dark teal -> black.
-fn rain_color(t: f32) -> Color {
+pub(crate) fn rain_color(t: f32) -> Color {
     const STOPS: [(f32, (u8, u8, u8)); 4] = [
         (0.0, (57, 255, 20)),   // neon green
         (0.35, (0, 255, 255)),  // cyan
