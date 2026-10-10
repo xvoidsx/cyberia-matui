@@ -1,6 +1,6 @@
 use crate::matrix::matrix::Matrix;
 use crate::matrix::roomcache::DecoratedRoom;
-use crate::widgets::splash::{RainColumn, XorShift32, kana, rain_color};
+use crate::widgets::splash::{RainColumn, XorShift32, rain_color};
 use crate::{close, consumed};
 use crossterm::event::{KeyCode, KeyEvent};
 use matrix_sdk::room::Room;
@@ -130,37 +130,22 @@ impl Rooms {
         }
     }
 
-    /// Big CYBERIA header with occasional katakana glitch, drawn centered.
-    /// Returns the y just below the header.
+    /// Big CYBERIA header, steady neon pink. The rain behind it
+    /// provides the motion — no glitch on the title itself.
     fn draw_hub_title(&self, area: Rect, buf: &mut Buffer, y: u16) -> u16 {
         const TITLE: [char; 7] = ['C', 'Y', 'B', 'E', 'R', 'I', 'A'];
-        let mut rain = self.rain.borrow_mut();
 
         let title_w: u16 = 13; // "C Y B E R I A"
         let x0 = area.width.saturating_sub(title_w) / 2;
+        let style = Style::default()
+            .fg(palette::NEON_PINK)
+            .add_modifier(Modifier::BOLD);
 
         for (i, ch) in TITLE.iter().enumerate() {
-            // a letter glitches into katakana every so often
-            let glitch = rain.rng.below(30) == 0;
-            let (glyph, style) = if glitch {
-                (
-                    kana(&mut rain.rng),
-                    Style::default()
-                        .fg(palette::NEON_PINK)
-                        .add_modifier(Modifier::BOLD),
-                )
-            } else {
-                (
-                    *ch,
-                    Style::default()
-                        .fg(palette::NEON_PINK)
-                        .add_modifier(Modifier::BOLD),
-                )
-            };
             let x = x0 + i as u16 * 2;
             if x < area.width && y < area.height {
                 let cell = &mut buf[(x, y)];
-                cell.set_char(glyph);
+                cell.set_char(*ch);
                 cell.set_style(style);
             }
         }
@@ -309,7 +294,12 @@ pub struct RoomsWidget<'a> {
 
 impl Widget for RoomsWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        // rain first: atmosphere behind everything
+        // clear first: the buffer persists across frames, and without this
+        // old rain glyphs accumulate into dark smudges over the text
+        buf.merge(&Buffer::empty(area));
+
+        // rain first: atmosphere behind everything. No solid backdrop —
+        // the hub stays translucent so rain drifts behind the text.
         self.rooms.tick_rain(area, buf);
 
         let area = Layout::default()
@@ -319,18 +309,8 @@ impl Widget for RoomsWidget<'_> {
             .constraints([Constraint::Percentage(100)].as_ref())
             .split(area)[0];
 
-        // solid backdrop so the list stays readable over the rain
-        for y in area.y..area.y + area.height {
-            for x in area.x..area.x + area.width {
-                let cell = &mut buf[(x, y)];
-                cell.set_char(' ');
-                cell.set_style(Style::default().bg(Color::Rgb(5, 5, 8)));
-            }
-        }
-
-        // Render the main block
+        // Render the main block (transparent bg — rain shows through)
         let block = Block::default()
-            .style(Style::default().bg(Color::Rgb(5, 5, 8)))
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(role::border());

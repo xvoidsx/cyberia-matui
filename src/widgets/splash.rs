@@ -133,17 +133,10 @@ pub struct Splash {
     /// Ambient mode: loops forever until a keypress dismisses it.
     /// Used for the on-demand screensaver (keybind `A`).
     ambient: bool,
-    /// Recent chat messages to glitch through the rain in ambient mode.
-    /// (sender display name, message body)
-    ambient_messages: Vec<(String, String)>,
+    /// Unread activity for the ambient summary line.
+    unread_total: u64,
+    unread_rooms: usize,
 }
-
-/// Ticks per ambient message cycle (250ms each): 8 materialize,
-/// 20 hold, 8 dissolve, 4 gap.
-const AMBIENT_MSG_CYCLE: usize = 40;
-const AMBIENT_MSG_MATERIALIZE: usize = 8;
-const AMBIENT_MSG_HOLD: usize = 20;
-const AMBIENT_MSG_DISSOLVE: usize = 8;
 
 impl Splash {
     pub fn new() -> Self {
@@ -153,21 +146,23 @@ impl Splash {
             rng: XorShift32(0xC0FFEE),
             size: None,
             ambient: false,
-            ambient_messages: Vec::new(),
+            unread_total: 0,
+            unread_rooms: 0,
         }
     }
 
     /// Looping variant for ambient mode: title starts fully revealed,
     /// rain never stops, and `done()` stays false until dismissed.
-    /// Recent messages glitch in and out through the rain.
-    pub fn ambient(messages: Vec<(String, String)>) -> Self {
+    /// Shows a persistent unread-activity summary under the title.
+    pub fn ambient(unread_total: u64, unread_rooms: usize) -> Self {
         Self {
             frame: TOTAL_FRAMES,
             cols: Vec::new(),
             rng: XorShift32(0xC0FFEE),
             size: None,
             ambient: true,
-            ambient_messages: messages,
+            unread_total,
+            unread_rooms,
         }
     }
 
@@ -219,7 +214,7 @@ impl Splash {
         self.draw_rain(buf, area);
         self.draw_title(buf, area);
         self.draw_tagline(buf, area);
-        self.draw_messages(buf, area);
+        self.draw_unread_summary(buf, area);
         self.draw_footer(buf, area);
     }
 
@@ -294,88 +289,52 @@ impl Splash {
         buf.set_string(x0, y, TAGLINE, Style::default().fg(color));
     }
 
-    /// Deterministic 0..1 pseudo-random from a seed and index.
-    /// Used for per-character glitch state so the rain RNG stays untouched.
-    fn glitch_rand(seed: u32, idx: usize) -> f32 {
-        let h = seed
-            .wrapping_mul(0x9E3779B9)
-            .wrapping_add((idx as u32).wrapping_mul(0x85EBCA6B))
-            .wrapping_mul(0xC2B2AE35);
-        (h as f32) / (u32::MAX as f32)
-    }
-
-    /// Recent chat messages materializing through the rain in ambient mode.
-    /// Each message cycles: glitch-in, hold, glitch-out, gap.
-    fn draw_messages(&mut self, buf: &mut Buffer, area: Rect) {
-        if !self.ambient || self.ambient_messages.is_empty() {
+    /// Persistent unread-activity summary for ambient mode.
+    /// Present, not glitchy — a glanceable "is there anything new?"
+    fn draw_unread_summary(&self, buf: &mut Buffer, area: Rect) {
+        if !self.ambient {
             return;
         }
 
-        let cycle = (self.frame / AMBIENT_MSG_CYCLE) % self.ambient_messages.len();
-        let tick = self.frame % AMBIENT_MSG_CYCLE;
-
-        // gap at the end of the cycle: nothing to show
-        if tick >= AMBIENT_MSG_MATERIALIZE + AMBIENT_MSG_HOLD + AMBIENT_MSG_DISSOLVE {
-            return;
-        }
-
-        let (sender, body) = &self.ambient_messages[cycle];
-        // single line, truncated to fit
-        let max_w = area.width.saturating_sub(8) as usize;
-        let mut text = format!("{}: {}", sender, body);
-        // collapse newlines; chat bodies can be multi-line
-        text = text.replace('\n', " ");
-        let chars: Vec<char> = text.chars().take(max_w).collect();
-        if chars.is_empty() {
-            return;
-        }
-
-        // progress 0..1: how "locked in" the message is
-        let progress = if tick < AMBIENT_MSG_MATERIALIZE {
-            tick as f32 / AMBIENT_MSG_MATERIALIZE as f32
-        } else if tick < AMBIENT_MSG_MATERIALIZE + AMBIENT_MSG_HOLD {
-            1.0
+        let text = if self.unread_total == 0 {
+            "[[ all quiet on the wired ]]".to_string()
         } else {
-            1.0 - (tick - AMBIENT_MSG_MATERIALIZE - AMBIENT_MSG_HOLD) as f32
-                / AMBIENT_MSG_DISSOLVE as f32
+            let rword = if self.unread_rooms == 1 { "room" } else { "rooms" };
+            let mword = if self.unread_total == 1 {
+                "message"
+            } else {
+                "messages"
+            };
+            format!(
+                "[[ {} {} in {} {} ]]",
+                self.unread_total, mword, self.unread_rooms, rword
+            )
         };
 
-        let seed = (cycle as u32).wrapping_mul(0x1F3D5B7D).wrapping_add(0xA53A9);
-        let sender_len = sender.chars().count().min(chars.len());
+        let y = area.height / 2 + 3;
+        if y >= area.height.saturating_sub(3) {
+            return;
+        }
+        let x0 = area.width.saturating_sub(text.len() as u16) / 2;
 
-        // below the title, clear of the tagline
-        let y = (area.height * 3 / 4).min(area.height.saturating_sub(4));
-        let x0 = area.width.saturating_sub(chars.len() as u16) / 2;
-
-        for (i, &ch) in chars.iter().enumerate() {
-            let locked = Self::glitch_rand(seed, i) < progress;
-            // during hold, occasional flicker keeps it alive
-            let flicker = progress >= 1.0 && Self::glitch_rand(seed ^ 0x5F5F5F5F, i ^ tick) < 0.04;
-
-            let (glyph, style) = if locked && !flicker {
-                let color = if i < sender_len {
-                    palette::NEON_PINK
-                } else {
-                    Color::White
-                };
-                (ch, Style::default().fg(color))
-            } else {
-                (
-                    kana(&mut self.rng),
-                    Style::default()
-                        .fg(palette::NEON_PINK)
-                        .add_modifier(Modifier::BOLD),
-                )
-            };
-
-            // don't write past the right edge
-            let x = x0 + i as u16;
+        // pink brackets, white text
+        let mut x = x0;
+        for (i, ch) in text.chars().enumerate() {
             if x >= area.width {
                 break;
             }
+            let in_brackets = i < 3 || i >= text.chars().count() - 3;
+            let style = if in_brackets {
+                Style::default()
+                    .fg(palette::NEON_PINK)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::White)
+            };
             let cell = &mut buf[(x, y)];
-            cell.set_char(glyph);
+            cell.set_char(ch);
             cell.set_style(style);
+            x += 1;
         }
     }
 
@@ -500,67 +459,24 @@ mod tests {
     }
 
     #[test]
-    fn glitch_rand_is_deterministic_and_bounded() {
-        for seed in [0u32, 1, 0xA53A9, u32::MAX] {
-            for idx in [0usize, 1, 42, 1000] {
-                let r = Splash::glitch_rand(seed, idx);
-                assert!((0.0..1.0).contains(&r), "out of range: {r}");
-                assert_eq!(r, Splash::glitch_rand(seed, idx));
-            }
-        }
-        // different indices usually differ
-        assert_ne!(
-            Splash::glitch_rand(0xA53A9, 0),
-            Splash::glitch_rand(0xA53A9, 1)
-        );
-    }
-
-    #[test]
-    fn ambient_stores_messages() {
-        let msgs = vec![
-            ("alice".to_string(), "hello".to_string()),
-            ("bob".to_string(), "hi".to_string()),
-        ];
-        let s = Splash::ambient(msgs);
+    fn ambient_stores_unread_counts() {
+        let s = Splash::ambient(5, 2);
         assert!(s.ambient);
-        assert_eq!(s.ambient_messages.len(), 2);
+        assert_eq!(s.unread_total, 5);
+        assert_eq!(s.unread_rooms, 2);
         assert!(!s.done());
     }
 
     #[test]
-    fn ambient_message_cycle_math() {
-        // 40 ticks per message: 8 materialize, 20 hold, 8 dissolve, 4 gap
-        assert_eq!(AMBIENT_MSG_CYCLE, 40);
-        assert_eq!(
-            AMBIENT_MSG_MATERIALIZE + AMBIENT_MSG_HOLD + AMBIENT_MSG_DISSOLVE,
-            36
-        );
-    }
-
-    #[test]
-    fn ambient_renders_messages_without_panic() {
-        let msgs = vec![
-            ("alice".to_string(), "hello world".to_string()),
-            ("bob".to_string(), "line1\nline2".to_string()),
-        ];
-        let mut s = Splash::ambient(msgs);
-        let backend = TestBackend::new(80, 24);
-        let mut term = Terminal::new(backend).unwrap();
-        // walk through materialize, hold, dissolve, gap, and into the next message
-        for _ in 0..(AMBIENT_MSG_CYCLE + 10) {
-            s.tick_frame();
-            term.draw(|f| s.render_frame(f)).unwrap();
-        }
-    }
-
-    #[test]
-    fn ambient_without_messages_renders_fine() {
-        let mut s = Splash::ambient(vec![]);
-        let backend = TestBackend::new(80, 24);
-        let mut term = Terminal::new(backend).unwrap();
-        for _ in 0..10 {
-            s.tick_frame();
-            term.draw(|f| s.render_frame(f)).unwrap();
+    fn ambient_renders_summary_without_panic() {
+        for (total, rooms) in [(0u64, 0usize), (1, 1), (42, 3)] {
+            let mut s = Splash::ambient(total, rooms);
+            let backend = TestBackend::new(80, 24);
+            let mut term = Terminal::new(backend).unwrap();
+            for _ in 0..10 {
+                s.tick_frame();
+                term.draw(|f| s.render_frame(f)).unwrap();
+            }
         }
     }
 }
