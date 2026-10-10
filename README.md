@@ -57,6 +57,7 @@ complicated. Especially if you don't implement too many features.
 | u      | Upload a file.                                         |
 | p      | Paste an image from the clipboard.                     |
 | m      | Mute or unmute the current room (until restart).       |
+| A      | Ambient mode: katakana rain screensaver (any key exits). |
 | /      | Search the current room.                               |
 | :      | Open the command prompt.                               |
 | ?      | Show this helper (press again for commands).           |

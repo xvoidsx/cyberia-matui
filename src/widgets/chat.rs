@@ -282,6 +282,12 @@ impl Chat {
                 toggle_mute(self.room().room_id());
                 Ok(consumed!())
             }
+            KeyCode::Char('A') => {
+                use crate::widgets::splash::Splash;
+                Ok(Consumed(Box::new(|app| {
+                    app.splash = Some(Splash::ambient())
+                })))
+            }
             KeyCode::Char('c') => {
                 let message = match self.selected_reply() {
                     Some(m) => m,

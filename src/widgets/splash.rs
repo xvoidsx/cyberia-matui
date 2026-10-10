@@ -130,6 +130,9 @@ pub struct Splash {
     cols: Vec<RainColumn>,
     rng: XorShift32,
     size: Option<(u16, u16)>,
+    /// Ambient mode: loops forever until a keypress dismisses it.
+    /// Used for the on-demand screensaver (keybind `A`).
+    ambient: bool,
 }
 
 impl Splash {
@@ -139,6 +142,19 @@ impl Splash {
             cols: Vec::new(),
             rng: XorShift32(0xC0FFEE),
             size: None,
+            ambient: false,
+        }
+    }
+
+    /// Looping variant for ambient mode: title starts fully revealed,
+    /// rain never stops, and `done()` stays false until dismissed.
+    pub fn ambient() -> Self {
+        Self {
+            frame: TOTAL_FRAMES,
+            cols: Vec::new(),
+            rng: XorShift32(0xC0FFEE),
+            size: None,
+            ambient: true,
         }
     }
 
@@ -148,7 +164,7 @@ impl Splash {
     }
 
     pub fn done(&self) -> bool {
-        self.frame >= TOTAL_FRAMES
+        !self.ambient && self.frame >= TOTAL_FRAMES
     }
 
     /// Letters revealed so far: one per tick, starting at tick 1.
@@ -215,23 +231,34 @@ impl Splash {
         }
     }
 
-    fn draw_title(&self, buf: &mut Buffer, area: Rect) {
+    fn draw_title(&mut self, buf: &mut Buffer, area: Rect) {
         // "C Y B E R I A" is 13 cells wide
         let title_w: u16 = 13;
         let x0 = area.width.saturating_sub(title_w) / 2;
         let y = area.height / 2 - 1;
         let revealed = self.revealed();
         for (i, ch) in TITLE.iter().enumerate() {
-            let style = if i < revealed {
-                Style::default()
-                    .fg(palette::NEON_PINK)
-                    .add_modifier(Modifier::BOLD)
+            let (glyph, style) = if i < revealed {
+                // ambient mode: revealed letters glitch into katakana
+                // and back, a few times a second
+                if self.ambient && self.rng.below(14) == 0 {
+                    let g = kana(&mut self.rng);
+                    let s = Style::default()
+                        .fg(palette::NEON_PINK)
+                        .add_modifier(Modifier::BOLD);
+                    (g, s)
+                } else {
+                    let s = Style::default()
+                        .fg(palette::NEON_PINK)
+                        .add_modifier(Modifier::BOLD);
+                    (*ch, s)
+                }
             } else {
                 // dim ghost so the full word shape stays visible
-                Style::default().fg(Color::Rgb(85, 17, 51))
+                (*ch, Style::default().fg(Color::Rgb(85, 17, 51)))
             };
             let cell = &mut buf[(x0 + i as u16 * 2, y)];
-            cell.set_char(*ch);
+            cell.set_char(glyph);
             cell.set_style(style);
         }
     }
@@ -255,14 +282,15 @@ impl Splash {
     }
 
     fn draw_footer(&self, buf: &mut Buffer, area: Rect) {
-        // final 3 ticks
-        if self.frame < 5 {
+        // final 3 ticks (or always, in ambient mode)
+        if !self.ambient && self.frame < 5 {
             return;
         }
-        let text = format!(
-            "v{} \u{2014} press any key",
-            env!("CARGO_PKG_VERSION")
-        );
+        let text = if self.ambient {
+            "ambient \u{2014} press any key".to_string()
+        } else {
+            format!("v{} \u{2014} press any key", env!("CARGO_PKG_VERSION"))
+        };
         let y = area.height.saturating_sub(2);
         let x0 = area.width.saturating_sub(text.len() as u16) / 2;
         buf.set_string(
