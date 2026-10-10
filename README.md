@@ -38,17 +38,28 @@ complicated. Especially if you don't implement too many features.
 | Space  | Show the room switcher.                                |
 | j*     | Select one line down.                                  |
 | k*     | Select one line up.                                    |
+| Ctrl+d | Select half a page down.                               |
+| Ctrl+u | Select half a page up.                                 |
+| G      | Select latest message.                                 |
 | i      | Create a new message using the external editor.        |
+| I      | Create a new message directly in the external editor.  |
 | Enter  | Open the selected message (images, videos, urls, etc). |
+| Esc    | Leave the thread view.                                 |
 | s      | Save the selected message (images and videos).         |
 | c      | Edit the selected message in the external editor.      |
+| dd     | Delete the selected message (with confirmation).       |
 | r      | React to the selected message.                         |
 | R      | Reply to the selected message.                         |
+| T      | Start (or open) a thread on the selected message.      |
+| U      | Open the command prompt with the sender filled in.     |
 | v      | View the selected message in the external editor.      |
 | V      | View the current room in the external editor.          |
 | u      | Upload a file.                                         |
+| p      | Paste an image from the clipboard.                     |
 | m      | Mute or unmute the current room (until restart).       |
-| ?      | Show this helper.                                      |
+| /      | Search the current room.                               |
+| :      | Open the command prompt.                               |
+| ?      | Show this helper (press again for commands).           |
 
 \* arrow keys are fine too
 

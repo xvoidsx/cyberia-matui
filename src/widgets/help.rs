@@ -117,6 +117,10 @@ fn key_rows() -> Vec<Row<'static>> {
             "c",
             "Edit the selected message in the external editor.",
         ]),
+        Row::new(vec![
+            "dd",
+            "Delete the selected message (with confirmation).",
+        ]),
         Row::new(vec!["r", "React to the selected message."]),
         Row::new(vec!["R", "Reply to the selected message."]),
         Row::new(vec![
